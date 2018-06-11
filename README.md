@@ -1,37 +1,87 @@
 # Vehicle Detection
-[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
 
+## **Challenge**
 
-In this project, your goal is to write a software pipeline to detect vehicles in a video (start with the test_video.mp4 and later implement on full project_video.mp4), but the main output or product we want you to create is a detailed writeup of the project.  Check out the [writeup template](https://github.com/udacity/CarND-Vehicle-Detection/blob/master/writeup_template.md) for this project and use it as a starting point for creating your own writeup.  
+Write a software pipeline to detect vehicles in a traffic video taken while driving on a motorway:
 
-Creating a great writeup:
----
-A great writeup should include the rubric points as well as your description of how you addressed each point.  You should include a detailed description of the code used in each step (with line-number references and code snippets where necessary), and links to other supporting documents or external references.  You should include images in your writeup to demonstrate how your code works with examples.  
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/project_video.gif)
 
-All that said, please be concise!  We're not looking for you to write a book here, just a brief description of how you passed each rubric point, and references to the relevant code :). 
+## **Actions**
 
-You can submit your writeup in markdown or use another method and submit a pdf instead.
+* Histogram of Oriented Gradients \(HOG\)
+  * we have been provided with a set of images: 8968 various traffic images, 8792 images with cars;images are color, 64x64 pixels
+  * using HOG and other techniques, extract features of these images
+  * separate the images in train/test and train a SVM classifier
+* Sliding Window Search
+  * implemented a sliding window search and classify each window as vehicle or non-vehicle
+  * run the function first on test images and afterwards against project video
+* Video Implementation
+  * output a video with the detected vehicles positions drawn as bounding boxes
+  * implement a robust method to avoid false positives \(could be a heat map showing the location of repeated detection\)
 
-The Project
----
+### Tools
 
-The goals / steps of this project are the following:
+This project used a combination of Python, numpy, matplotlib, openCV, scikit-learn and moviepy; this is by definition a computer vision project. These tools are installed in a anaconda environment and ran in a Jupyter notebook.
 
-* Perform a Histogram of Oriented Gradients (HOG) feature extraction on a labeled training set of images and train a classifier Linear SVM classifier
-* Optionally, you can also apply a color transform and append binned color features, as well as histograms of color, to your HOG feature vector. 
-* Note: for those first two steps don't forget to normalize your features and randomize a selection for training and testing.
-* Implement a sliding-window technique and use your trained classifier to search for vehicles in images.
-* Run your pipeline on a video stream (start with the test_video.mp4 and later implement on full project_video.mp4) and create a heat map of recurring detections frame by frame to reject outliers and follow detected vehicles.
-* Estimate a bounding box for vehicles detected.
+The complete project implementation is available here: [https://github.com/FlorinGh/SelfDrivingCar-ND-pr4-Advanced-Lane-Lines](https://github.com/FlorinGh/SelfDrivingCar-ND-pr4-Advanced-Lane-Lines).
 
-Here are links to the labeled data for [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) examples to train your classifier.  These example images come from a combination of the [GTI vehicle image database](http://www.gti.ssr.upm.es/data/Vehicle_database.html), the [KITTI vision benchmark suite](http://www.cvlibs.net/datasets/kitti/), and examples extracted from the project video itself.   You are welcome and encouraged to take advantage of the recently released [Udacity labeled dataset](https://github.com/udacity/self-driving-car/tree/master/annotations) to augment your training data.  
+### Histogram of Oriented Gradients \(HOG\)
 
-Some example images for testing your pipeline on single frames are located in the `test_images` folder.  To help the reviewer examine your work, please save examples of the output from each stage of your pipeline in the folder called `ouput_images`, and include them in your writeup for the project by describing what each image shows.    The video called `project_video.mp4` is the video your pipeline should work well on.  
+The implementation starts with importing the relevant modules for this project; all images were place in the same directory on a local drive; non-car images have been renamed starting with 'traffic'; this helped separate them in car and non-car lists; the data set has 8792 car images and 8968 non-car images; the data set is well balanced and it doesn't need augmentation.
 
-**As an optional challenge** Once you have a working pipeline for vehicle detection, add in your lane-finding algorithm from the last project to do simultaneous lane-finding and vehicle detection!
+Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
 
-**If you're feeling ambitious** (also totally optional though), don't stop there!  We encourage you to go out and take video of your own, and show us how you would implement this project on a new video!
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/output_images/car_not_car.png)
 
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+I then explored different colour spaces and different `skimage.hog()` parameters \(`orientations`, `pixels_per_cell`, and `cells_per_block`\). I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
+
+Here is an example using the `YCrCb` color space and HOG parameters of `orientations=8`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`:
+
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/output_images/HOG_example.jpg)
+
+In order to choose the HOG parameters, I tested different combinations changing only one parameter at a time, on a range of values; the best accuracy would indicate which value to keep and went ahead to test another parameter; below you can see the effect of each parameter, and in bold the one kept for final run.
+
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/output_images/parameters_search.png)
+
+After that the features of each of the car and non-car image are extracted; these are used to train the linear SVM model; before running the training algorithm the features are normalised using the StandardScaler; then data set is initiated and trained; the resulting test accuracy was 98.51%.
+
+### Sliding Window Search
+
+The next section is the main part of the project: using small windows, each image \(video frame\) is searched; data from each window is than tested against the trained model and a decision is made if it contains a car or not; using several windows we can detect a car in more than one window; this is particularly helpful to reduce false positive cases; using a heat filter we will extract the locations where a car was detected more than 5 times, ignoring all other windows.
+
+I searched with 3 window sizes: 90px, 96px and 112px; these were selected after a few trial and error tests:
+
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/output_images/sliding_windows.png)
+
+Ultimately I searched on two scales using YCrCb 3-channel HOG features plus spatially binned color and histograms of color in the feature vector, which provided a nice result. Here are some example images:
+
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/output_images/sliding_window.jpg)
+
+### Video Implementation
+
+I recorded the positions of positive detections in each frame of the video. From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions. I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap. I then assumed each blob corresponded to a vehicle. I constructed bounding boxes to cover the area of each blob detected.
+
+Here's an example result showing the heat map from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
+
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/output_images/bboxes_and_heat.png)
+
+Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
+
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/output_images/labels_map.png)
+
+And here the resulting bounding boxes are drawn onto the last frame in the series:
+
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/output_images/output_bboxes.png)
+
+### Discussion
+
+The most difficult part of the project was eliminating the false positives; even we had good accuracy on the test, in the project this didn't seem good enough; this is a sign the training model had over-fit the training data; One way to improve the project would be to try another training model, maybe a neural network.
+
+## **Results**
+
+All steps described above were captured in a pipeline; applying it over the frames of the traffic video renders the following result:
+
+![](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection/blob/master/project_video_output.gif)
+
+For more details on this project visit the following github repository: [https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection](https://github.com/FlorinGh/SelfDrivingCar-ND-pr5-Vehicle-Detection).
 
